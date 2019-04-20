@@ -21,30 +21,37 @@ type YoulessRealtime struct {
 	TotalS0PowerConsumption string `json:"cs0"`
 	CurrentS0Power          int    `json:"ps0"`
 }
+type Configuration struct {
+	Ip               *string
+	RefreshInSeconds *int
+	Name, NameS0     *string
+}
 
 func main() {
-	ip := flag.String("ip", `192.168.178.20`, "Youless ip")
-	refreshInSeconds := flag.Duration("refreshInSeconds", 1, "How often to update in seconds")
-	name := flag.String("name", "meter1", "Name of your meter")
-	s0name := flag.String("s0name", "meter1s0", "Name of your meter")
+	config := Configuration{}
+	config.Ip = flag.String("ip", "127.0.0.1", "Youless device ip")
+	config.RefreshInSeconds = flag.Int("refreshInSeconds", 1, "How often to update in seconds")
+	config.Name = flag.String("name", "meter1", "Name of your meter")
+	config.NameS0 = flag.String("s0name", "meter1s0", "Name of your s0 meter")
+
 	flag.Parse()
 
 	var (
 		totalPowerConsumption = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name:        "youless_total_power_consumption",
-			ConstLabels: prometheus.Labels{"name": *name},
+			Name:        "youless_total_value",
+			ConstLabels: prometheus.Labels{"name": *config.Name},
 		})
 		currentPower = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name:        "youless_current_power",
-			ConstLabels: prometheus.Labels{"name": *name},
+			Name:        "youless_current_value",
+			ConstLabels: prometheus.Labels{"name": *config.Name},
 		})
 		totalS0PowerConsumption = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name:        "youless_total_s0_power_consumption",
-			ConstLabels: prometheus.Labels{"name": *s0name},
+			Name:        "youless_s0_total_value",
+			ConstLabels: prometheus.Labels{"name": *config.NameS0},
 		})
 		currentS0Power = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name:        "youless_current_s0_power",
-			ConstLabels: prometheus.Labels{"name": *s0name},
+			Name:        "youless_s0_current_value",
+			ConstLabels: prometheus.Labels{"name": *config.NameS0},
 		})
 	)
 
@@ -55,37 +62,43 @@ func main() {
 
 	go func() {
 		for {
-			req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/a?f=j", *ip), nil)
-			if err != nil {
-				break
+			for {
+				req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/a?f=j", *config.Ip), nil)
+				if err != nil {
+					log.Println("Request building failure: ", err)
+					break
+				}
+
+				client := &http.Client{}
+				response, err := client.Do(req)
+
+				if err != nil {
+					log.Println("Connection failure: ", err)
+					break
+				}
+				defer response.Body.Close()
+
+				contents, err := ioutil.ReadAll(response.Body)
+				if err != nil {
+					log.Println("Reading data failure: ", err)
+					break
+				}
+				var data YoulessRealtime
+				json.Unmarshal([]byte(contents), &data)
+
+				totalPowerConsumptionParsedValued, _ := strconv.ParseFloat(strings.TrimSpace(strings.Replace(data.TotalPowerConsumption, ",", ".", 1)), 64)
+				totalPowerConsumption.Set(totalPowerConsumptionParsedValued)
+
+				currentPower.Set(float64(data.CurrentPower))
+
+				totalS0PowerConsumptionParsedValued, err := strconv.ParseFloat(strings.TrimSpace(strings.Replace(data.TotalS0PowerConsumption, ",", ".", 1)), 64)
+				totalS0PowerConsumption.Set(totalS0PowerConsumptionParsedValued)
+
+				currentS0Power.Set(float64(data.CurrentS0Power))
+
+				time.Sleep(time.Duration(*config.RefreshInSeconds) * time.Second)
 			}
-
-			client := &http.Client{}
-			response, err := client.Do(req)
-
-			defer response.Body.Close()
-			if err != nil {
-				break
-			}
-
-			contents, err := ioutil.ReadAll(response.Body)
-			if err != nil {
-				break
-			}
-			var data YoulessRealtime
-			json.Unmarshal([]byte(contents), &data)
-
-			totalPowerConsumptionParsedValued, _ := strconv.ParseFloat(strings.TrimSpace(strings.Replace(data.TotalPowerConsumption, ",", ".", 1)), 64)
-			totalPowerConsumption.Set(totalPowerConsumptionParsedValued)
-
-			currentPower.Set(float64(data.CurrentPower))
-
-			totalS0PowerConsumptionParsedValued, err := strconv.ParseFloat(strings.TrimSpace(strings.Replace(data.TotalS0PowerConsumption, ",", ".", 1)), 64)
-			totalS0PowerConsumption.Set(totalS0PowerConsumptionParsedValued)
-
-			currentS0Power.Set(float64(data.CurrentS0Power))
-
-			time.Sleep(*refreshInSeconds * time.Second)
+			time.Sleep(time.Duration(*config.RefreshInSeconds) * time.Second)
 		}
 	}()
 
