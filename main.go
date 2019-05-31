@@ -76,9 +76,9 @@ func main() {
 					log.Println("Connection failure: ", err)
 					break
 				}
-				defer response.Body.Close()
 
 				contents, err := ioutil.ReadAll(response.Body)
+				response.Body.Close()
 				if err != nil {
 					log.Println("Reading data failure: ", err)
 					break
