@@ -11,7 +11,7 @@ services:
     image: kevinkamps/youless_exporter:latest
     ports:
      - "80:8080"
-    command: -ip=.123.123.123.123 -name="Meter1" -s0name="Meter1s0" -refreshInSeconds=1
+    command: -ip=123.123.123.123 -name="Meter1" -s0name="Meter1s0" -refreshInSeconds=1
 ```
 
 ### Commandline example
@@ -20,7 +20,7 @@ docker run -d \
     --name=youless_exporter \
     kevinkamps/youless_exporter:latest \
     -p 80:8080 \
-      -ip=.123.123.123.123 -name="Meter1" -s0name="Meter1s0" -refreshInSeconds=1 
+      -ip=123.123.123.123 -name="Meter1" -s0name="Meter1s0" -refreshInSeconds=1 
 ```
 
 
