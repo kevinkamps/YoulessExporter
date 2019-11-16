@@ -4,4 +4,4 @@ services:
     image: kevinkamps/youless_exporter:latest
     ports:
     - "80:8080"
-    command: -ip=.123.123.123.123 -name="Meter1" -s0name="Meter1s0" -refreshInSeconds=1
+    command: -ip=123.123.123.123 -name="Meter1" -s0name="Meter1s0" -refreshInSeconds=1
